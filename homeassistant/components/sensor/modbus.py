@@ -24,6 +24,7 @@ CONF_REGISTER = 'register'
 CONF_REGISTERS = 'registers'
 CONF_SCALE = 'scale'
 CONF_SLAVE = 'slave'
+CONF_SIGNED = 'signed'
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_REGISTERS): [{
@@ -34,6 +35,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
         vol.Optional(CONF_PRECISION, default=0): cv.positive_int,
         vol.Optional(CONF_SCALE, default=1): vol.Coerce(float),
         vol.Optional(CONF_SLAVE): cv.positive_int,
+        vol.Optional(CONF_SIGNED, default=False): vol.Coerce(bool),
         vol.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string
     }]
 })
@@ -51,7 +53,8 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
             register.get(CONF_COUNT),
             register.get(CONF_SCALE),
             register.get(CONF_OFFSET),
-            register.get(CONF_PRECISION)))
+            register.get(CONF_PRECISION),
+            register.get(CONF_SIGNED)))
     add_devices(sensors)
 
 
@@ -59,7 +62,7 @@ class ModbusRegisterSensor(Entity):
     """Modbus resgister sensor."""
 
     def __init__(self, name, slave, register, unit_of_measurement, count,
-                 scale, offset, precision):
+                 scale, offset, precision, signed):
         """Initialize the modbus register sensor."""
         self._name = name
         self._slave = int(slave) if slave else None
@@ -69,7 +72,10 @@ class ModbusRegisterSensor(Entity):
         self._scale = scale
         self._offset = offset
         self._precision = precision
+        self._signed = signed
         self._value = None
+        _LOGGER.error("Signed %s",
+                          self._slave)
 
     @property
     def state(self):
@@ -99,5 +105,9 @@ class ModbusRegisterSensor(Entity):
             return
         for i, res in enumerate(result.registers):
             val += res * (2**(i*16))
+
+        if self._signed == True and val & 0x8000 != 0:
+            val = val - 0x10000
+
         self._value = format(
             self._scale * val + self._offset, '.{}f'.format(self._precision))
